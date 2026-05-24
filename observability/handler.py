@@ -83,13 +83,47 @@ class OpenSearchHandler(logging.Handler):
             bulk_body += record_str + "\n"
 
         try:
-            self._client.post(
+            resp = self._client.post(
                 f"{self._host}/_bulk",
                 content=bulk_body.encode(),
                 headers={"Content-Type": "application/x-ndjson"},
                 auth=self._auth,
             )
-        except Exception:
+        except Exception as e:
             # OpenSearch unreachable — write to stderr so nothing is lost
+            print(f"OpenSearchHandler: transport error: {type(e).__name__}: {e}", file=sys.stderr)
             for record_str in records:
                 print(record_str, file=sys.stderr)
+            return
+
+        # Bulk API returns 200 even when individual docs fail — must inspect body
+        if resp.status_code >= 400:
+            print(
+                f"OpenSearchHandler: bulk request failed: HTTP {resp.status_code} {resp.text[:1000]}",
+                file=sys.stderr,
+            )
+            return
+
+        try:
+            body = resp.json()
+        except Exception:
+            return
+
+        if not body.get("errors"):
+            return
+
+        # Per-document errors — log the first few so we can diagnose
+        failures = []
+        for item in body.get("items", []):
+            op = item.get("index") or item.get("create") or {}
+            if op.get("error"):
+                failures.append({
+                    "status": op.get("status"),
+                    "type": op["error"].get("type"),
+                    "reason": op["error"].get("reason"),
+                })
+        if failures:
+            print(
+                f"OpenSearchHandler: {len(failures)} of {len(records)} docs rejected. First 3: {failures[:3]}",
+                file=sys.stderr,
+            )

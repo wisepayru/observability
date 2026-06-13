@@ -4,3 +4,10 @@ __pycache__/
 dist/
 build/
 .venv/
+
+# Test / coverage artifacts
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.ruff_cache/

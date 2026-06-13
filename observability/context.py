@@ -1,5 +1,4 @@
 from contextlib import contextmanager
-from typing import Tuple
 
 from opentelemetry import trace
 

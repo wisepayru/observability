@@ -1,0 +1,51 @@
+name: tests
+
+# The single source of truth for "did tests pass". Runs standalone on pushes,
+# PRs and releases, and is also called by the release workflow (workflow_call)
+# so it gates on this without duplicating steps.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    types: [opened, synchronize, reopened]
+  release:
+    types: [published]
+  workflow_call: {}
+
+jobs:
+  test:
+    # push/release always run. PRs run only when the author is an org
+    # member/maintainer -- the runner is self-hosted on the prod box, so we do
+    # not auto-run unreviewed (or fork) PR code. workflow_call passes through:
+    # the calling release workflow only fires on trusted events.
+    if: >-
+      github.event_name != 'pull_request' ||
+      contains(fromJson('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
+    runs-on: self-hosted
+    env:
+      # Isolated venv per run, never touching the runner's global site-packages.
+      PYTHONNOUSERSITE: "1"
+      PIP_NO_CACHE_DIR: "1"
+      VIRTUAL_ENV: ${{ github.workspace }}/.venv
+      PATH: ${{ github.workspace }}/.venv/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Full history + tags so setuptools-scm can derive the version.
+          fetch-depth: 0
+
+      - name: Create virtualenv (Python 3.14)
+        run: /opt/homebrew/bin/python3.14 -m venv --clear --copies .venv
+
+      - name: Install package and test dependencies
+        run: .venv/bin/pip install --isolated -e . -r requirements-test.txt
+
+      - name: Lint (ruff)
+        run: .venv/bin/ruff check .
+
+      - name: Run tests
+        run: .venv/bin/pytest --cov-fail-under=90
+
+      - name: Cleanup virtualenv
+        if: always()
+        run: rm -rf .venv

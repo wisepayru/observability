@@ -1,0 +1,17 @@
+# Test-only dependencies. Pinned per #108 conventions.
+#
+# Install on top of the package's runtime deps:
+#   pip install -e . -r requirements-test.txt
+#
+# Runtime deps (httpx, starlette, opensearch-py, opentelemetry, python-json-
+# logger) come from the package itself via `pip install -e .` and are left
+# unpinned in pyproject so consuming services control their own versions.
+# This library has no database, so no Postgres/psycopg test deps are needed.
+
+pytest==9.0.3
+pytest-mock==3.15.1
+pytest-cov==7.1.0
+ruff==0.15.17
+
+# --- transitive deps, pinned for reproducibility ---
+coverage==7.14.1

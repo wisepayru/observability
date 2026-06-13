@@ -15,6 +15,8 @@ import logging
 
 import pytest
 
+from observability._vars import _request_id_var, _span_id_var, _trace_id_var
+
 # Env vars this package reads. Cleared before each test so the host environment
 # never influences a result.
 _OBSERVABILITY_ENV_VARS = (
@@ -35,6 +37,17 @@ _OBSERVABILITY_ENV_VARS = (
 def _isolate_env(monkeypatch):
     for var in _OBSERVABILITY_ENV_VARS:
         monkeypatch.delenv(var, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _reset_context_vars():
+    # run_context / TraceMiddleware set these via ContextVar.set() without ever
+    # resetting them, so a value set in one test would otherwise leak into the
+    # next (tests run sequentially in one thread/context). Clear before each.
+    _trace_id_var.set(None)
+    _span_id_var.set(None)
+    _request_id_var.set(None)
+    yield
 
 
 @pytest.fixture(autouse=True)

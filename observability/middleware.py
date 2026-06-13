@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 from opentelemetry import trace
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator

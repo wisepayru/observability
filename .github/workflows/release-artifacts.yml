@@ -1,0 +1,64 @@
+name: release-artifacts
+
+# On a published GitHub Release: gate on the test suite, then build a wheel +
+# sdist and attach them to the release. The primary consumption path stays
+# `pip install git+https://github.com/wisepayru/observability.git@<tag>`; these
+# artifacts give every release a validated, downloadable build.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write   # upload assets to the release
+
+jobs:
+  # Reuse the single source of truth so a release can never ship un-tested code.
+  test:
+    uses: ./.github/workflows/test.yml
+
+  build:
+    needs: test
+    runs-on: self-hosted
+    env:
+      PYTHONNOUSERSITE: "1"
+      PIP_NO_CACHE_DIR: "1"
+      VIRTUAL_ENV: ${{ github.workspace }}/.venv
+      PATH: ${{ github.workspace }}/.venv/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Full history + tags so setuptools-scm derives the version from the
+          # release tag (otherwise it builds a 0.0.0/dev version).
+          fetch-depth: 0
+
+      - name: Create virtualenv (Python 3.14)
+        run: /opt/homebrew/bin/python3.14 -m venv --clear --copies .venv
+
+      - name: Install build backend
+        run: .venv/bin/pip install --isolated "build==1.5.0"
+
+      - name: Build wheel + sdist
+        run: .venv/bin/python -m build
+
+      - name: Verify built version matches the release tag
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          VERSION="${TAG#v}"   # tolerate an optional leading v
+          echo "release tag: $TAG  ->  expected version: $VERSION"
+          ls -1 dist/
+          if ! ls dist/*"$VERSION"* >/dev/null 2>&1; then
+            echo "::error::built artifacts do not carry version $VERSION (tag $TAG)"
+            exit 1
+          fi
+          if ls dist/*dev* >/dev/null 2>&1; then
+            echo "::error::a dev version was built -- the release tag is not at a clean commit"
+            exit 1
+          fi
+
+      - name: Upload artifacts to the release
+        run: gh release upload "${{ github.event.release.tag_name }}" dist/* --clobber
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf .venv dist build *.egg-info

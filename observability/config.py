@@ -10,7 +10,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from pythonjsonlogger import jsonlogger
 
 from .handler import OpenSearchHandler
-from ._vars import get_trace_id, get_span_id
+from ._vars import get_trace_id, get_span_id, get_request_id
 
 
 class _JsonFormatter(jsonlogger.JsonFormatter):
@@ -48,6 +48,14 @@ class _JsonFormatter(jsonlogger.JsonFormatter):
             log_record["trace_id"] = trace_id
         if span_id:
             log_record["span_id"] = span_id
+
+        # Carry the upstream caller's id (set by TraceMiddleware from the inbound
+        # X-Request-Id) under the index's canonical `correlation_id` field, so
+        # logs can be correlated to the caller. App code may set its own
+        # correlation_id via extra=; that explicit value wins.
+        request_id = get_request_id()
+        if request_id and "correlation_id" not in log_record:
+            log_record["correlation_id"] = request_id
 
         if record.exc_info:
             log_record["exception"] = self.formatException(record.exc_info)

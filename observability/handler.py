@@ -52,7 +52,12 @@ class OpenSearchHandler(logging.Handler):
 
     def close(self) -> None:
         self._stopped.set()
-        self._flush()
+        # Drain everything still queued, not just one batch_size chunk, so a
+        # burst of records right before shutdown is not lost. _flush() always
+        # consumes the records it pulls (shipping them or, on error, writing
+        # them to stderr), so this terminates even if OpenSearch is unreachable.
+        while not self._queue.empty():
+            self._flush()
         self._client.close()
         super().close()
 

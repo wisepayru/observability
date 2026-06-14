@@ -206,6 +206,25 @@ def test_partial_document_failures_logged(mocker, make_handler, capsys):
     assert "mapper_parsing_exception" in err
 
 
+def test_close_drains_all_queued_records(mocker, make_handler):
+    # #6: close() must ship everything queued, not just one batch_size chunk.
+    handler = make_handler(batch_size=2)
+    client = _mock_ok_post(mocker, handler)
+    for i in range(5):
+        handler._queue.put_nowait(json.dumps({"i": i}))
+
+    handler.close()
+
+    shipped = []
+    for call in client.post.call_args_list:
+        for line in call.kwargs["content"].decode().strip().split("\n"):
+            obj = json.loads(line)
+            if "i" in obj:  # source lines (action lines have key "index")
+                shipped.append(obj["i"])
+    assert sorted(shipped) == [0, 1, 2, 3, 4]
+    assert handler._queue.empty()
+
+
 def test_successful_flush_is_silent(mocker, make_handler, capsys):
     handler = make_handler()
     _mock_ok_post(mocker, handler, body={"errors": False})

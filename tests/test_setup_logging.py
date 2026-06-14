@@ -7,8 +7,6 @@ import io
 import json
 import logging
 
-import pytest
-
 from observability import setup_logging
 from observability._vars import _request_id_var, _span_id_var, _trace_id_var
 from observability.handler import OpenSearchHandler
@@ -182,15 +180,24 @@ def test_app_extra_fields_pass_through():
     assert doc["order_id"] == 57962476928
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="#9: upstream X-Request-Id is captured but never injected into log records",
-)
-def test_upstream_request_id_injected_when_in_context():
+def test_upstream_request_id_injected_as_correlation_id():
+    # #9: the captured upstream X-Request-Id surfaces under the index's
+    # canonical correlation_id field so logs correlate to the caller.
     _request_id_var.set("upstream-req-123")
     setup_logging()
     doc = _emit_and_capture()
-    # The OpenSearch mapping's canonical correlation field is `correlation_id`;
-    # accept either name so this flips to passing whichever the fix adopts.
-    injected = doc.get("correlation_id") or doc.get("request_id")
-    assert injected == "upstream-req-123"
+    assert doc["correlation_id"] == "upstream-req-123"
+
+
+def test_app_correlation_id_wins_over_request_id():
+    # An explicit app-set correlation_id takes precedence over the upstream id.
+    _request_id_var.set("upstream-req-123")
+    setup_logging()
+    doc = _emit_and_capture(extra={"correlation_id": "app-set-uuid"})
+    assert doc["correlation_id"] == "app-set-uuid"
+
+
+def test_no_correlation_id_without_request_id():
+    setup_logging()
+    doc = _emit_and_capture()
+    assert "correlation_id" not in doc

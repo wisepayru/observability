@@ -1,12 +1,12 @@
 [build-system]
-requires = ["setuptools>=68", "setuptools-scm>=8"]
+requires = ["setuptools>=77", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "wisepay-observability"
 description = "Shared OpenSearch/OTEL structured logging for wisepay services"
 requires-python = ">=3.14"
-license = { text = "MPL-2.0" }
+license = "MPL-2.0"
 dynamic = ["version"]
 dependencies = [
     "opentelemetry-api",

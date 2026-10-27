@@ -18,28 +18,26 @@ jobs:
 
   build:
     needs: test
-    runs-on: self-hosted
+    runs-on: ubuntu-24.04-arm
     env:
-      PYTHONNOUSERSITE: "1"
       PIP_NO_CACHE_DIR: "1"
-      VIRTUAL_ENV: ${{ github.workspace }}/.venv
-      PATH: ${{ github.workspace }}/.venv/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           # Full history + tags so setuptools-scm derives the version from the
           # release tag (otherwise it builds a 0.0.0/dev version).
           fetch-depth: 0
 
-      - name: Create virtualenv (Python 3.14)
-        run: /opt/homebrew/bin/python3.14 -m venv --clear --copies .venv
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: "3.14"
 
       - name: Install build backend
-        run: .venv/bin/pip install --isolated "build==1.5.0"
+        run: pip install --isolated "build==1.6.1"
 
       - name: Build wheel + sdist
-        run: .venv/bin/python -m build
+        run: python -m build
 
       - name: Verify built version matches the release tag
         run: |
@@ -58,7 +56,3 @@ jobs:
 
       - name: Upload artifacts to the release
         run: gh release upload "${{ github.event.release.tag_name }}" dist/* --clobber
-
-      - name: Cleanup
-        if: always()
-        run: rm -rf .venv dist build *.egg-info

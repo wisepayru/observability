@@ -7,13 +7,13 @@ from typing import List, Optional
 
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
-from pythonjsonlogger import jsonlogger
+from pythonjsonlogger.json import JsonFormatter
 
 from .handler import OpenSearchHandler
 from ._vars import get_trace_id, get_span_id, get_request_id
 
 
-class _JsonFormatter(jsonlogger.JsonFormatter):
+class _JsonFormatter(JsonFormatter):
     """
     Extends python-json-logger with automatic injection of:
       - @timestamp (ISO-8601 UTC, millisecond precision)
